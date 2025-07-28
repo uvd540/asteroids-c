@@ -31,7 +31,7 @@ Vector2 Vector2Wrap(Vector2 v, Vector2 min, Vector2 max) {
   }
   return result;
 }
-// UTILITIES
+// core_basic_windowUTILITIES
 
 // INPUT
 typedef struct {
