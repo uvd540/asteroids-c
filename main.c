@@ -66,7 +66,7 @@ void user_input_update(UserInput *user_input) {
 }
 // INPUT
 
-#pragma region SHIP
+// SHIP
 typedef struct {
   Vector2 position;
   float heading;
@@ -122,7 +122,7 @@ void ship_draw(Ship *ship) {
     DrawCircleLinesV(ship->position, ship->size, RED);
   }
 }
-#pragma endregion SHIP
+// SHIP
 
 // PROJECTILES
 #define MAX_PROJECTILES 16
