@@ -125,7 +125,7 @@ void ship_draw(Ship *ship) {
 // SHIP
 
 // PROJECTILES
-#define MAX_PROJECTILES 24
+#define MAX_PROJECTILES 16
 #define PROJECTILE_SPEED 500
 #define PROJECTILE_TIME_TO_LIVE 1
 #define PROJECTILE_RADIUS 3
@@ -153,15 +153,19 @@ void projectiles_spawn(Projectiles *projectiles, Vector2 position,
   projectiles->time_of_last_fire = timestamp;
 }
 
+void projectiles_unordered_remove(Projectiles *projectiles, size_t at) {
+  projectiles->position[at] = projectiles->position[projectiles->length - 1];
+  projectiles->velocity[at] = projectiles->velocity[projectiles->length - 1];
+  projectiles->time_to_live[at] =
+      projectiles->time_to_live[projectiles->length - 1];
+  projectiles->length--;
+}
+
 void projectiles_update(Projectiles *projectiles, float dt) {
   for (size_t i = 0; i < projectiles->length; i++) {
     projectiles->time_to_live[i] -= dt;
     if (projectiles->time_to_live[i] <= 0) {
-      projectiles->position[i] = projectiles->position[projectiles->length - 1];
-      projectiles->velocity[i] = projectiles->velocity[projectiles->length - 1];
-      projectiles->time_to_live[i] =
-          projectiles->time_to_live[projectiles->length - 1];
-      projectiles->length--;
+      projectiles_unordered_remove(projectiles, i);
       i--;
     } else {
       projectiles->position[i] = Vector2Add(
@@ -180,26 +184,30 @@ void projectiles_draw(Projectiles *projectiles) {
 // PROJECTILES
 
 // ASTEROIDS
-typedef enum { Large, Medium, Small } AsteroidType;
+typedef enum {
+  AsteroidType_Large,
+  AsteroidType_Medium,
+  AsteroidType_Small
+} AsteroidType;
 
 float asteroid_get_radius(AsteroidType type) {
   switch (type) {
-  case Large:
+  case AsteroidType_Large:
     return 40;
-  case Medium:
+  case AsteroidType_Medium:
     return 20;
-  case Small:
+  case AsteroidType_Small:
     return 10;
   }
 }
 
 float asteroid_get_speed(AsteroidType type) {
   switch (type) {
-  case Large:
+  case AsteroidType_Large:
     return 20;
-  case Medium:
+  case AsteroidType_Medium:
     return 40;
-  case Small:
+  case AsteroidType_Small:
     return 80;
   }
 }
@@ -213,17 +221,32 @@ typedef struct {
   size_t length;
 } Asteroids;
 
+void asteroids_spawn(Asteroids *asteroids, size_t at, Vector2 position,
+                     AsteroidType type) {
+  asteroids->type[at] = type;
+  asteroids->position[at] = position;
+  asteroids->position[at] = position;
+  float asteroids_base_speed = asteroid_get_speed(type);
+  float asteroid_speed =
+      GetRandomValue(asteroids_base_speed * 0.5, asteroids_base_speed * 1.5);
+  asteroids->velocity[at] = Vector2Rotate((Vector2){asteroid_speed, 0.0f},
+                                          GetRandomValue(0.0f, 2.0f * PI));
+}
+
 void asteroids_init(Asteroids *asteroids) {
   asteroids->length = STARTING_ASTEROIDS;
   for (size_t i = 0; i < asteroids->length; i++) {
-    asteroids->position[i].x = GetRandomValue(0, 800);
-    asteroids->position[i].y = GetRandomValue(0, 800);
-    float asteroids_base_speed = asteroid_get_speed(asteroids->type[i]);
-    float asteroid_speed =
-        GetRandomValue(asteroids_base_speed * 0.5, asteroids_base_speed * 1.5);
-    asteroids->velocity[i] = Vector2Rotate((Vector2){asteroid_speed, 0.0f},
-                                           GetRandomValue(0.0f, 2.0f * PI));
+    Vector2 spawn_position =
+        (Vector2){GetRandomValue(0, 800), GetRandomValue(0, 800)};
+    asteroids_spawn(asteroids, i, spawn_position, AsteroidType_Large);
   }
+}
+
+void asteroids_unordered_remove(Asteroids *asteroids, size_t at) {
+  asteroids->type[at] = asteroids->type[asteroids->length - 1];
+  asteroids->position[at] = asteroids->position[asteroids->length - 1];
+  asteroids->velocity[at] = asteroids->velocity[asteroids->length - 1];
+  asteroids->length--;
 }
 
 void asteroids_update(Asteroids *asteroids, float dt) {
@@ -244,7 +267,7 @@ void asteroids_draw(Asteroids *asteroids) {
 }
 // ASTEROIDS
 
-// game state
+// GAME
 UserInput user_input = {0};
 Ship ship = {0};
 Projectiles projectiles = {0};
@@ -265,6 +288,40 @@ bool is_ship_hit(Ship *ship, Asteroids *asteroids) {
     }
   }
   return false;
+}
+
+void collision_projectiles_asteroids(Projectiles *projectiles,
+                                     Asteroids *asteroids) {
+  for (size_t ai = 0; ai < asteroids->length; ai++) {
+    for (size_t pi = 0; pi < projectiles->length; pi++) {
+      if (CheckCollisionCircles(asteroids->position[ai],
+                                asteroid_get_radius(asteroids->type[ai]),
+                                projectiles->position[pi], PROJECTILE_RADIUS)) {
+        switch (asteroids->type[ai]) {
+        case AsteroidType_Large: {
+          asteroids_spawn(asteroids, asteroids->length, asteroids->position[ai],
+                          AsteroidType_Medium);
+          asteroids_spawn(asteroids, asteroids->length + 1,
+                          asteroids->position[ai], AsteroidType_Medium);
+          asteroids->length += 2;
+        } break;
+        case AsteroidType_Medium: {
+          asteroids_spawn(asteroids, asteroids->length, asteroids->position[ai],
+                          AsteroidType_Small);
+          asteroids_spawn(asteroids, asteroids->length + 1,
+                          asteroids->position[ai], AsteroidType_Small);
+          asteroids->length += 2;
+        } break;
+        case AsteroidType_Small:
+          break;
+        }
+        projectiles_unordered_remove(projectiles, pi);
+        asteroids_unordered_remove(asteroids, ai);
+        ai--;
+        continue;
+      }
+    }
+  }
 }
 
 int main(void) {
@@ -300,6 +357,7 @@ void UpdateDrawFrame(void) {
   if (is_ship_hit(&ship, &asteroids)) {
     reset();
   }
+  collision_projectiles_asteroids(&projectiles, &asteroids);
   BeginDrawing();
   ClearBackground(BLACK);
   ship_draw(&ship);
