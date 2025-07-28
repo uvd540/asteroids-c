@@ -1,20 +1,3 @@
-/*******************************************************************************************
- *
- *   raylib [core] example - Basic window (adapted for HTML5 platform)
- *
- *   This example is prepared to compile for PLATFORM_WEB and PLATFORM_DESKTOP
- *   As you will notice, code structure is slightly different to the other
- *   examples... To compile it for PLATFORM_WEB just uncomment #define
- *PLATFORM_WEB at beginning
- *
- *   This example has been created using raylib 1.3 (www.raylib.com)
- *   raylib is licensed under an unmodified zlib/libpng license (View raylib.h
- *   for details)
- *
- *   Copyright (c) 2015 Ramon Santamaria (@raysan5)
- *
- ********************************************************************************************/
-
 #include "raylib.h"
 #include "raymath.h"
 #include <stddef.h>
@@ -27,6 +10,7 @@
 
 int screenWidth = 800;
 int screenHeight = 800;
+bool debug_mode = false;
 
 void UpdateDrawFrame(void);
 
@@ -55,6 +39,8 @@ typedef struct {
   bool turn_left;
   bool turn_right;
   bool fire;
+  bool reset;
+  bool toggle_debug;
 } UserInput;
 
 void user_input_update(UserInput *user_input) {
@@ -70,6 +56,12 @@ void user_input_update(UserInput *user_input) {
   }
   if (IsKeyDown(KEY_SPACE)) {
     user_input->fire = true;
+  }
+  if (IsKeyPressed(KEY_R)) {
+    user_input->reset = true;
+  }
+  if (IsKeyPressed(KEY_GRAVE)) {
+    debug_mode = !debug_mode;
   }
 }
 // INPUT
@@ -126,8 +118,9 @@ void ship_draw(Ship *ship) {
              2.0f, WHITE);
   DrawLineEx(Vector2Add(Vector2Scale(pt1, 0.5f), ship->position),
              Vector2Add(Vector2Scale(pt2, 0.5f), ship->position), 2.0f, WHITE);
-  // draw hitbox
-  // DrawCircleLinesV(ship->position, ship->size, RED);
+  if (debug_mode) {
+    DrawCircleLinesV(ship->position, ship->size, RED);
+  }
 }
 // SHIP
 
@@ -143,6 +136,7 @@ typedef struct {
 
 #define MAX_PROJECTILES 100
 #define PROJECTILE_DELAY 0.1
+// OPTIMIZE: change this to structure of arrays. Might even simplify logic
 typedef struct {
   Projectile items[MAX_PROJECTILES];
   size_t length;
@@ -220,6 +214,7 @@ typedef struct {
 
 #define STARTING_ASTEROIDS 24
 #define MAX_ASTEROIDS STARTING_ASTEROIDS * 4
+// OPTIMIZE: change this to structure of arrays. Might even simplify logic
 typedef struct {
   Asteroid items[MAX_ASTEROIDS];
   size_t length;
@@ -262,7 +257,24 @@ Ship ship = {0};
 Projectiles projectiles = {0};
 Asteroids asteroids = {0};
 
-int main() {
+void reset(void) {
+  ship_init(&ship);
+  asteroids_init(&asteroids);
+  projectiles.length = 0;
+}
+
+bool is_ship_hit(Ship *ship, Asteroids *asteroids) {
+  for (size_t i = 0; i < asteroids->length; i++) {
+    Asteroid *a = &asteroids->items[i];
+    if (CheckCollisionCircles(ship->position, ship->size, a->position,
+                              asteroid_get_radius(a->type))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int main(void) {
   InitWindow(screenWidth, screenHeight, "asteroids");
   ship_init(&ship);
   asteroids_init(&asteroids);
@@ -281,6 +293,9 @@ int main() {
 }
 
 void UpdateDrawFrame(void) {
+  if (user_input.reset) {
+    reset();
+  }
   float dt = GetFrameTime();
   user_input_update(&user_input);
   ship_update(&ship, &user_input, dt);
@@ -289,6 +304,9 @@ void UpdateDrawFrame(void) {
   }
   projectiles_update(&projectiles, dt);
   asteroids_update(&asteroids, dt);
+  if (is_ship_hit(&ship, &asteroids)) {
+    reset();
+  }
   BeginDrawing();
   ClearBackground(BLACK);
   ship_draw(&ship);
