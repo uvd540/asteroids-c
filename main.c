@@ -268,10 +268,17 @@ void asteroids_draw(Asteroids *asteroids) {
 // ASTEROIDS
 
 // GAME
+typedef enum {
+  AppState_Menu,
+  AppState_Game,
+  AppState_GameOver,
+} AppState;
+AppState app_state = AppState_Menu;
 UserInput user_input = {0};
 Ship ship = {0};
 Projectiles projectiles = {0};
 Asteroids asteroids = {0};
+unsigned int score = 0;
 
 void reset(void) {
   ship_init(&ship);
@@ -343,25 +350,50 @@ int main(void) {
 }
 
 void UpdateDrawFrame(void) {
+  float dt = GetFrameTime();
+  switch (app_state) {
+  case AppState_Menu: {
+    if (IsKeyPressed(KEY_SPACE)) {
+      app_state = AppState_Game;
+    }
+  } break;
+  case AppState_Game: {
+    user_input_update(&user_input);
+    ship_update(&ship, &user_input, dt);
+    if (user_input.fire) {
+      projectiles_spawn(&projectiles, ship.position, ship.heading, GetTime());
+    }
+    projectiles_update(&projectiles, dt);
+    asteroids_update(&asteroids, dt);
+    if (is_ship_hit(&ship, &asteroids)) {
+      reset();
+    }
+    collision_projectiles_asteroids(&projectiles, &asteroids);
+  } break;
+  case AppState_GameOver: {
+
+  } break;
+  }
   if (user_input.reset) {
     reset();
   }
-  float dt = GetFrameTime();
-  user_input_update(&user_input);
-  ship_update(&ship, &user_input, dt);
-  if (user_input.fire) {
-    projectiles_spawn(&projectiles, ship.position, ship.heading, GetTime());
-  }
-  projectiles_update(&projectiles, dt);
-  asteroids_update(&asteroids, dt);
-  if (is_ship_hit(&ship, &asteroids)) {
-    reset();
-  }
-  collision_projectiles_asteroids(&projectiles, &asteroids);
   BeginDrawing();
   ClearBackground(BLACK);
-  ship_draw(&ship);
-  projectiles_draw(&projectiles);
-  asteroids_draw(&asteroids);
+  switch (app_state) {
+  case AppState_Menu: {
+    const char *title = "ASTEROIDS";
+    int title_width = MeasureText(title, 48);
+    DrawText(title, 400 - (title_width / 2), 200, 48, WHITE);
+    DrawText("PRESS <SPACE> TO START", 200, 400, 24, WHITE);
+  } break;
+  case AppState_Game: {
+    ship_draw(&ship);
+    projectiles_draw(&projectiles);
+    asteroids_draw(&asteroids);
+  } break;
+  case AppState_GameOver: {
+
+  } break;
+  }
   EndDrawing();
 }
