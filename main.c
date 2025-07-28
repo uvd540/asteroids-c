@@ -384,12 +384,15 @@ void UpdateDrawFrame(void) {
     const char *title = "ASTEROIDS";
     int title_width = MeasureText(title, 48);
     DrawText(title, 400 - (title_width / 2), 200, 48, WHITE);
-    DrawText("PRESS <SPACE> TO START", 200, 400, 24, WHITE);
+    const char *start = "PRESS SPACE TO START";
+    int start_width = MeasureText(start, 24);
+    DrawText(start, 400 - (start_width / 2), 400, 24, WHITE);
   } break;
   case AppState_Game: {
     ship_draw(&ship);
     projectiles_draw(&projectiles);
     asteroids_draw(&asteroids);
+    DrawText(TextFormat("Score: %d", score), 680, 24, 24, WHITE);
   } break;
   case AppState_GameOver: {
 
