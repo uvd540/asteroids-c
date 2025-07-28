@@ -16,7 +16,7 @@ cmake --build build
 ./build/asteroids
 ```
 ### Web
-Requires the emscripten toolchain to be installed
+Compiling for the web requires the [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html):
 ```bash
 # Clone repository
 git clone https://github.com/uvd540/asteroids-c
