@@ -125,22 +125,17 @@ void ship_draw(Ship *ship) {
 // SHIP
 
 // PROJECTILES
+#define MAX_PROJECTILES 24
 #define PROJECTILE_SPEED 500
 #define PROJECTILE_TIME_TO_LIVE 1
 #define PROJECTILE_RADIUS 3
-typedef struct {
-  Vector2 position;
-  Vector2 velocity;
-  float time_to_live;
-} Projectile;
-
-#define MAX_PROJECTILES 100
 #define PROJECTILE_DELAY 0.1
-// OPTIMIZE: change this to structure of arrays. Might even simplify logic
 typedef struct {
-  Projectile items[MAX_PROJECTILES];
-  size_t length;
+  Vector2 position[MAX_PROJECTILES];
+  Vector2 velocity[MAX_PROJECTILES];
+  float time_to_live[MAX_PROJECTILES];
   double time_of_last_fire;
+  size_t length;
 } Projectiles;
 
 void projectiles_spawn(Projectiles *projectiles, Vector2 position,
@@ -149,34 +144,37 @@ void projectiles_spawn(Projectiles *projectiles, Vector2 position,
     return;
   if (timestamp < projectiles->time_of_last_fire + PROJECTILE_DELAY)
     return;
-  projectiles->items[projectiles->length].position = position;
-  projectiles->items[projectiles->length].velocity =
+  size_t i = projectiles->length;
+  projectiles->position[i] = position;
+  projectiles->velocity[i] =
       Vector2Rotate((Vector2){PROJECTILE_SPEED, 0.0f}, heading);
-  projectiles->items[projectiles->length].time_to_live =
-      PROJECTILE_TIME_TO_LIVE;
+  projectiles->time_to_live[i] = PROJECTILE_TIME_TO_LIVE;
   projectiles->length++;
   projectiles->time_of_last_fire = timestamp;
 }
 
 void projectiles_update(Projectiles *projectiles, float dt) {
   for (size_t i = 0; i < projectiles->length; i++) {
-    Projectile *p = &projectiles->items[i];
-    p->time_to_live -= dt;
-    if (p->time_to_live <= 0) {
-      projectiles->items[i] = projectiles->items[projectiles->length - 1];
+    projectiles->time_to_live[i] -= dt;
+    if (projectiles->time_to_live[i] <= 0) {
+      projectiles->position[i] = projectiles->position[projectiles->length - 1];
+      projectiles->velocity[i] = projectiles->velocity[projectiles->length - 1];
+      projectiles->time_to_live[i] =
+          projectiles->time_to_live[projectiles->length - 1];
       projectiles->length--;
       i--;
     } else {
-      p->position = Vector2Add(p->position, Vector2Scale(p->velocity, dt));
-      p->position =
-          Vector2Wrap(p->position, Vector2Zero(), (Vector2){800.0f, 800.0f});
+      projectiles->position[i] = Vector2Add(
+          projectiles->position[i], Vector2Scale(projectiles->velocity[i], dt));
+      projectiles->position[i] = Vector2Wrap(
+          projectiles->position[i], Vector2Zero(), (Vector2){800.0f, 800.0f});
     }
   }
 }
 
 void projectiles_draw(Projectiles *projectiles) {
   for (size_t i = 0; i < projectiles->length; i++) {
-    DrawCircleV(projectiles->items[i].position, PROJECTILE_RADIUS, WHITE);
+    DrawCircleV(projectiles->position[i], PROJECTILE_RADIUS, WHITE);
   }
 }
 // PROJECTILES
@@ -206,47 +204,42 @@ float asteroid_get_speed(AsteroidType type) {
   }
 }
 
-typedef struct {
-  AsteroidType type;
-  Vector2 position;
-  Vector2 velocity;
-} Asteroid;
-
 #define STARTING_ASTEROIDS 24
 #define MAX_ASTEROIDS STARTING_ASTEROIDS * 4
-// OPTIMIZE: change this to structure of arrays. Might even simplify logic
 typedef struct {
-  Asteroid items[MAX_ASTEROIDS];
+  AsteroidType type[MAX_ASTEROIDS];
+  Vector2 position[MAX_ASTEROIDS];
+  Vector2 velocity[MAX_ASTEROIDS];
   size_t length;
 } Asteroids;
 
 void asteroids_init(Asteroids *asteroids) {
   asteroids->length = STARTING_ASTEROIDS;
   for (size_t i = 0; i < asteroids->length; i++) {
-    Asteroid *a = &asteroids->items[i];
-    a->position.x = GetRandomValue(0, 800);
-    a->position.y = GetRandomValue(0, 800);
-    float asteroids_base_speed = asteroid_get_speed(a->type);
+    asteroids->position[i].x = GetRandomValue(0, 800);
+    asteroids->position[i].y = GetRandomValue(0, 800);
+    float asteroids_base_speed = asteroid_get_speed(asteroids->type[i]);
     float asteroid_speed =
         GetRandomValue(asteroids_base_speed * 0.5, asteroids_base_speed * 1.5);
-    a->velocity = Vector2Rotate((Vector2){asteroid_speed, 0.0f},
-                                GetRandomValue(0.0f, 2.0f * PI));
+    asteroids->velocity[i] = Vector2Rotate((Vector2){asteroid_speed, 0.0f},
+                                           GetRandomValue(0.0f, 2.0f * PI));
   }
 }
 
 void asteroids_update(Asteroids *asteroids, float dt) {
   for (size_t i = 0; i < asteroids->length; i++) {
-    Asteroid *a = &asteroids->items[i];
-    a->position = Vector2Add(a->position, Vector2Scale(a->velocity, dt));
-    a->position = Vector2Wrap(a->position, (Vector2){0.0f, 0.0f},
-                              (Vector2){800.0f, 800.0f});
+    asteroids->position[i] = Vector2Add(
+        asteroids->position[i], Vector2Scale(asteroids->velocity[i], dt));
+    asteroids->position[i] =
+        Vector2Wrap(asteroids->position[i], (Vector2){0.0f, 0.0f},
+                    (Vector2){800.0f, 800.0f});
   }
 }
 
 void asteroids_draw(Asteroids *asteroids) {
   for (size_t i = 0; i < asteroids->length; i++) {
-    Asteroid *a = &asteroids->items[i];
-    DrawCircleLinesV(a->position, asteroid_get_radius(a->type), WHITE);
+    DrawCircleLinesV(asteroids->position[i],
+                     asteroid_get_radius(asteroids->type[i]), WHITE);
   }
 }
 // ASTEROIDS
@@ -265,9 +258,9 @@ void reset(void) {
 
 bool is_ship_hit(Ship *ship, Asteroids *asteroids) {
   for (size_t i = 0; i < asteroids->length; i++) {
-    Asteroid *a = &asteroids->items[i];
-    if (CheckCollisionCircles(ship->position, ship->size, a->position,
-                              asteroid_get_radius(a->type))) {
+    if (CheckCollisionCircles(ship->position, ship->size,
+                              asteroids->position[i],
+                              asteroid_get_radius(asteroids->type[i]))) {
       return true;
     }
   }
